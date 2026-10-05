@@ -22,6 +22,31 @@ std::optional<Color> parse_plist_color(const PlistNode* dict) {
     float b = static_cast<float>(b_node->as_real());
     float a = a_node ? static_cast<float>(a_node->as_real()) : 1.0f;
 
+    const PlistNode* cs_node = dict->find("Color Space");
+    if (cs_node && cs_node->is_string() && cs_node->as_string() == "P3") {
+        auto srgb_gamma_inv = [](float c) -> float {
+            return (c <= 0.04045f) ? (c / 12.92f) : std::pow((c + 0.055f) / 1.055f, 2.4f);
+        };
+        auto srgb_gamma = [](float c) -> float {
+            c = std::clamp(c, 0.0f, 1.0f);
+            return (c <= 0.0031308f) ? (12.92f * c) : (1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f);
+        };
+
+        float lr = srgb_gamma_inv(std::clamp(r, 0.0f, 1.0f));
+        float lg = srgb_gamma_inv(std::clamp(g, 0.0f, 1.0f));
+        float lb = srgb_gamma_inv(std::clamp(b, 0.0f, 1.0f));
+
+        float sr =  1.22494017f * lr - 0.22473852f * lg + 0.00000000f * lb;
+        float sg = -0.04205693f * lr + 1.04190461f * lg + 0.00000000f * lb;
+        float sb = -0.01970550f * lr - 0.07865065f * lg + 1.09835615f * lb;
+
+        uint8_t u8_r = static_cast<uint8_t>(std::round(srgb_gamma(sr) * 255.0f));
+        uint8_t u8_g = static_cast<uint8_t>(std::round(srgb_gamma(sg) * 255.0f));
+        uint8_t u8_b = static_cast<uint8_t>(std::round(srgb_gamma(sb) * 255.0f));
+        uint8_t u8_a = static_cast<uint8_t>(std::round(std::clamp(a, 0.0f, 1.0f) * 255.0f));
+        return Color(u8_r, u8_g, u8_b, u8_a);
+    }
+
     auto to_u8 = [](float v) -> uint8_t {
         return static_cast<uint8_t>(std::round(std::clamp(v, 0.0f, 1.0f) * 255.0f));
     };

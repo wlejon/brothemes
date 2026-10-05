@@ -27,7 +27,12 @@ WcagLevel wcag_level(Color fg, Color bg) noexcept;
 bool meets_wcag_aa(Color fg, Color bg, bool is_large_text = false) noexcept;
 bool meets_wcag_aaa(Color fg, Color bg, bool is_large_text = false) noexcept;
 
-// APCA (Accessible Perceptual Contrast Algorithm - W3C Silver / WCAG 3)
+// APCA (Accessible Perceptual Contrast Algorithm - W3C Silver / WCAG 3 Candidate)
+// Licensing & Usage Note:
+// APCA was developed by Andrew Somers / Myndex Research. The algorithm and name "APCA"
+// are subject to trademark and proprietary licensing restrictions by Myndex.
+// For production environments requiring unencumbered open-source standards, WCAG 2.1
+// (wcag_contrast_ratio, meets_wcag_aa) is the default and recommended standard.
 // Returns signed Lc contrast: positive for dark text on light bg, negative for light text on dark bg.
 float apca_contrast(Color fg, Color bg) noexcept;
 

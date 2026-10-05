@@ -143,3 +143,18 @@ ctest --test-dir build-release --output-on-failure
 - All checks fail in Release builds if an invariant is violated.
 - Non-destructive: tests write only to temporary files in the build tree and clean them up before exit.
 - Includes authentic reference test vectors for Dracula, Solarized Dark, Solarized Light, Nord, Monokai, One Dark, Gruvbox, Tokyo Night, and Catppuccin.
+- Multi-format differential oracle: round-trips hundreds of schemes from the public `iTerm2-Color-Schemes` repository across Windows Terminal, Kitty, Ghostty, Alacritty, and iTerm2 property list formats.
+
+## Standards & Licensing: WCAG 2.1 vs APCA
+
+- **WCAG 2.1 (Default & Recommended Standard)**:
+  - Formulated as a formal W3C Recommendation.
+  - Fully open and unencumbered for all commercial and open-source software applications.
+  - Used by default in `wcag_contrast_ratio`, `meets_wcag_aa`, `meets_wcag_aaa`, `adjust_contrast`, and `adjust_palette_contrast`.
+
+- **APCA (Accessible Perceptual Contrast Algorithm - W3C Silver / WCAG 3 Candidate)**:
+  - Developed by Andrew Somers / Myndex Research.
+  - APCA is currently an experimental candidate algorithm for WCAG 3.
+  - The name "APCA" is a registered trademark of Myndex Research, and its specific reference code is subject to Myndex licensing restrictions.
+  - Provided in `brothemes` (`apca_contrast`, `apca_contrast_abs`) for evaluation and comparison against emerging perceptual models. For applications requiring unencumbered open-source licensing, WCAG 2.1 is the authoritative standard.
+
