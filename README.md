@@ -1,7 +1,9 @@
 # brothemes
 
+[![CI](https://github.com/wlejon/brothemes/actions/workflows/ci.yml/badge.svg)](https://github.com/wlejon/brothemes/actions/workflows/ci.yml)
+
 Standalone, reusable C++20 colour schemes and theme engine library for the
-bro desktop substrate and terminal applications. Zero dependencies, its own
+[bro](https://github.com/wlejon/bro) desktop substrate and terminal applications. Zero dependencies, its own
 CMake and ctest, building cleanly on Windows (MSVC), Linux (GCC 12+), and
 macOS (Apple Clang).
 
@@ -170,4 +172,11 @@ ctest --test-dir build-release --output-on-failure
   - APCA is currently an experimental candidate algorithm for WCAG 3.
   - The name "APCA" is a registered trademark of Myndex Research, and its specific reference code is subject to Myndex licensing restrictions.
   - Provided in `brothemes` (`apca_contrast`, `apca_contrast_abs`) for evaluation and comparison against emerging perceptual models. For applications requiring unencumbered open-source licensing, WCAG 2.1 is the authoritative standard.
+
+## License
+
+MIT; see [LICENSE](LICENSE). The test data in `tests/data/iterm2-color-schemes.bpk` is the
+[iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes) collection, also MIT
+(`tests/data/iterm2-color-schemes.LICENSE`); it is read only by the tests and is not part of the
+library.
 

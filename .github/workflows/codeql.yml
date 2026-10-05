@@ -1,0 +1,60 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+# brothemes parses theme files people download from anywhere: XML plists,
+# JSON with comments, TOML, YAML and kitty/Ghostty key-value files, each with
+# a hand-written parser. Out-of-bounds reads on a truncated escape or number,
+# and unbounded recursion on nested input, are the realistic bugs, and they are
+# what the C++ queries look for.
+jobs:
+  analyze:
+    name: Analyze C++
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: brothemes
+
+      - name: Install Ninja
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ninja-build
+
+      # Tests and tools off: the tests are scaffolding, and tools/pack is the
+      # test data's archive codec, not code the library ships. That leaves the
+      # library, which is all brothemes' own code: there is nothing vendored to
+      # pre-build outside the trace.
+      - name: Configure
+        run: |
+          cmake -S brothemes -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+            -DBROTHEMES_BUILD_TESTS=OFF -DBROTHEMES_BUILD_TOOLS=OFF
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+          source-root: brothemes
+          queries: security-extended
+
+      - name: Build brothemes (traced)
+        run: cmake --build build --parallel 4
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:c-cpp
