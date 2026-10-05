@@ -1,0 +1,2 @@
+# The scheme oracle archive is binary: never convert line endings in it.
+*.bpk binary

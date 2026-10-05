@@ -77,6 +77,13 @@ tests/
   test_adjustment.cpp Automatic contrast adjustment and hue preservation
   test_formats.cpp  Direct format import/export roundtrips and file load/save
   test_matrix.cpp   Cross-format matrix tests with Dracula, Solarized, Nord, Monokai, One Dark, Gruvbox, Tokyo Night, Catppuccin
+  test_schemes_oracle.cpp Differential oracle over all 724 iTerm2-Color-Schemes schemes
+  test_pack.cpp     The bpk archive codec the oracle data ships in
+  data/iterm2-color-schemes.bpk     The iTerm2-Color-Schemes files the oracle reads (0.5 MB)
+  data/iterm2-color-schemes.LICENSE Their licence (MIT)
+tools/pack/
+  bpk.h, bpk_*.cpp  Archive codec: LZ77 over a 1 MiB window + canonical Huffman
+  pack_schemes.cpp  brothemes_pack: rebuild / list / extract the oracle archive
 ```
 
 ## Usage Example
@@ -143,7 +150,13 @@ ctest --test-dir build-release --output-on-failure
 - All checks fail in Release builds if an invariant is violated.
 - Non-destructive: tests write only to temporary files in the build tree and clean them up before exit.
 - Includes authentic reference test vectors for Dracula, Solarized Dark, Solarized Light, Nord, Monokai, One Dark, Gruvbox, Tokyo Night, and Catppuccin.
-- Multi-format differential oracle: round-trips hundreds of schemes from the public `iTerm2-Color-Schemes` repository across Windows Terminal, Kitty, Ghostty, Alacritty, and iTerm2 property list formats.
+- Multi-format differential oracle: round-trips all 724 schemes from the public `iTerm2-Color-Schemes` repository across Windows Terminal, Kitty, Ghostty, Alacritty, and iTerm2 property list formats.
+  The upstream files (2,899 of them, 6.4 MB of content, ~9.7 MB on disk) ship byte for byte in one 0.5 MB archive,
+  `tests/data/iterm2-color-schemes.bpk`, written by an in-repo C++ codec (`tools/pack`, no third-party compressor).
+  To move to a newer upstream: `brothemes_pack <iTerm2-Color-Schemes checkout> tests/data/iterm2-color-schemes.bpk`
+  (pack an LF checkout, e.g. `git -c core.autocrlf=false clone`, so the archive holds upstream's bytes)
+  (built with the tests; `--list` / `--extract` read an archive back), then update the per-format counts in
+  `test_schemes_oracle.cpp`. The library itself embeds no scheme data.
 
 ## Standards & Licensing: WCAG 2.1 vs APCA
 

@@ -113,7 +113,8 @@ ConfigMap ConfigMap::parse_toml(std::string_view toml_text) {
                 sub_v = unquote(sub_v);
 
                 std::string full_k = current_section.empty() ? to_lower(key_sv) : current_section + "." + to_lower(key_sv);
-                full_k += "." + to_lower(sub_k);
+                full_k += '.';  // not "." + std::string: GCC 12 -Wrestrict false positive (PR 105651)
+                full_k += to_lower(sub_k);
                 map.entries[full_k] = std::string(sub_v);
             }
             continue;

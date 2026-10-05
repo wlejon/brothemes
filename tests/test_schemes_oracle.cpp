@@ -1,10 +1,20 @@
+// Differential oracle over the whole iTerm2-Color-Schemes collection
+// (https://github.com/mbadolato/iTerm2-Color-Schemes, MIT): every scheme is
+// published there in several formats generated from one source, so each
+// format's importer must agree with the others, and every exporter must
+// round-trip. The collection ships as tests/data/iterm2-color-schemes.bpk, a
+// compressed archive of the upstream files byte for byte (tools/pack; the
+// licence is tests/data/iterm2-color-schemes.LICENSE and inside the archive).
 #include "check.h"
+#include "pack/bpk.h"
 #include <brothemes/themes.h>
+
 #include <cmath>
 #include <cstdlib>
-#include <filesystem>
 #include <iostream>
+#include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace bro::themes;
@@ -18,34 +28,45 @@ bool color_within(Color c1, Color c2, int tol) {
     return dr <= tol && dg <= tol && db <= tol;
 }
 
-std::filesystem::path find_schemes_root() {
-    std::filesystem::path p;
-#ifdef BROTHEMES_TEST_DIR
-    p = std::filesystem::path(BROTHEMES_TEST_DIR) / "iTerm2-Color-Schemes";
-    if (std::filesystem::exists(p)) return p;
-#endif
-    if (std::filesystem::exists("tests/iTerm2-Color-Schemes")) {
-        return "tests/iTerm2-Color-Schemes";
-    }
-    if (std::filesystem::exists("../tests/iTerm2-Color-Schemes")) {
-        return "../tests/iTerm2-Color-Schemes";
-    }
-    return "";
+bool same_palette(const Theme& a, const Theme& b, int tol) {
+    if (!color_within(a.ui.background, b.ui.background, tol)) return false;
+    if (!color_within(a.ui.foreground, b.ui.foreground, tol)) return false;
+    for (size_t i = 0; i < 16; ++i)
+        if (!color_within(a.ansi[i], b.ansi[i], tol)) return false;
+    return true;
 }
 
 } // namespace
 
 int main() {
-    auto root = find_schemes_root();
-    CHECK(!root.empty());
-    std::cout << "Testing iTerm2-Color-Schemes collection at: " << root.string() << std::endl;
+    const std::string pack = std::string(BROTHEMES_TEST_DIR) + "/data/iterm2-color-schemes.bpk";
+    std::string error;
+    const auto entries = bpk::read_archive_file(pack, &error);
+    CHECK(entries.has_value());
+    if (!entries) {
+        std::cerr << pack << ": " << error << "\n";
+        return ::brotest::finish("test_schemes_oracle");
+    }
+    std::map<std::string, const std::string*, std::less<>> files;
+    std::map<std::string, size_t> per_dir;
+    for (const auto& e : *entries) {
+        files.emplace(e.path, &e.data);
+        const size_t slash = e.path.find('/');
+        per_dir[slash == std::string::npos ? std::string() : e.path.substr(0, slash)]++;
+    }
+    auto find = [&](const std::string& path) -> const std::string* {
+        auto it = files.find(path);
+        return it == files.end() ? nullptr : it->second;
+    };
+    std::cout << "iTerm2-Color-Schemes archive: " << entries->size() << " files\n";
 
-    auto wt_dir = root / "windowsterminal";
-    auto kitty_dir = root / "kitty";
-    auto ghostty_dir = root / "ghostty";
-    auto iterm_dir = root / "schemes";
-
-    CHECK(std::filesystem::exists(wt_dir));
+    // Nothing was lost when the collection was packed (counts of the vendored
+    // upstream tree; repacking a newer upstream updates these).
+    CHECK(find("LICENSE") != nullptr);
+    CHECK_EQ(per_dir["schemes"], size_t(724));
+    CHECK_EQ(per_dir["windowsterminal"], size_t(724));
+    CHECK_EQ(per_dir["kitty"], size_t(724));
+    CHECK_EQ(per_dir["ghostty"], size_t(725));
 
     size_t count_tested = 0;
     size_t kitty_checked = 0;
@@ -53,108 +74,50 @@ int main() {
     size_t iterm_checked = 0;
     size_t roundtrips_checked = 0;
 
-    for (const auto& entry : std::filesystem::directory_iterator(wt_dir)) {
-        if (entry.path().extension() != ".json") continue;
+    const std::string_view wt_prefix = "windowsterminal/", wt_ext = ".json";
+    for (const auto& e : *entries) {
+        const std::string_view path = e.path;
+        if (!path.starts_with(wt_prefix) || !path.ends_with(wt_ext)) continue;
+        const std::string stem(path.substr(wt_prefix.size(), path.size() - wt_prefix.size() - wt_ext.size()));
 
-        std::string stem = entry.path().stem().string();
-
-        auto t_wt = load_theme_file(entry.path().string(), ThemeFormat::WindowsTerminal);
+        auto t_wt = import_theme(e.data, ThemeFormat::WindowsTerminal);
         if (!t_wt) continue;
         count_tested++;
 
-        // 1. Cross-check against Kitty format (.conf)
-        auto kitty_path = kitty_dir / (stem + ".conf");
-        if (std::filesystem::exists(kitty_path)) {
-            auto t_kitty = load_theme_file(kitty_path.string(), ThemeFormat::Kitty);
-            if (t_kitty) {
-                // Background & Foreground should match exactly
-                CHECK(color_within(t_wt->ui.background, t_kitty->ui.background, 0));
-                CHECK(color_within(t_wt->ui.foreground, t_kitty->ui.foreground, 0));
-
-                // 16 ANSI colors should match exactly
-                for (size_t i = 0; i < 16; ++i) {
-                    CHECK(color_within(t_wt->ansi[i], t_kitty->ansi[i], 0));
-                }
+        // 1. Kitty (.conf): background, foreground and the 16 ANSI colours match exactly.
+        if (const std::string* kitty = find("kitty/" + stem + ".conf")) {
+            if (auto t_kitty = import_theme(*kitty, ThemeFormat::Kitty)) {
+                CHECK(same_palette(*t_wt, *t_kitty, 0));
                 kitty_checked++;
             }
         }
 
-        // 2. Cross-check against Ghostty format
-        auto ghostty_path = ghostty_dir / stem;
-        if (std::filesystem::exists(ghostty_path)) {
-            auto t_ghostty = load_theme_file(ghostty_path.string(), ThemeFormat::Ghostty);
-            if (t_ghostty) {
-                CHECK(color_within(t_wt->ui.background, t_ghostty->ui.background, 0));
-                CHECK(color_within(t_wt->ui.foreground, t_ghostty->ui.foreground, 0));
-
-                for (size_t i = 0; i < 16; ++i) {
-                    CHECK(color_within(t_wt->ansi[i], t_ghostty->ansi[i], 0));
-                }
+        // 2. Ghostty.
+        if (const std::string* ghostty = find("ghostty/" + stem)) {
+            if (auto t_ghostty = import_theme(*ghostty, ThemeFormat::Ghostty)) {
+                CHECK(same_palette(*t_wt, *t_ghostty, 0));
                 ghostty_checked++;
             }
         }
 
-        // 3. Cross-check against iTerm2 format (.itermcolors)
-        // iTerm2 plists use Apple Color Space / float RGB, and upstream authors occasionally
-        // tune terminal colors (e.g. Alabaster/3024) to avoid white-on-white text.
-        auto iterm_path = iterm_dir / (stem + ".itermcolors");
-        if (std::filesystem::exists(iterm_path)) {
-            auto t_iterm = load_theme_file(iterm_path.string(), ThemeFormat::Iterm);
-            if (t_iterm) {
-                iterm_checked++;
-            }
+        // 3. iTerm2 (.itermcolors). iTerm2 plists use Apple colour spaces / float RGB, and
+        // upstream authors occasionally tune terminal colours (e.g. Alabaster / 3024) to avoid
+        // white-on-white text, so these must parse but are not compared.
+        if (const std::string* iterm = find("schemes/" + stem + ".itermcolors")) {
+            if (import_theme(*iterm, ThemeFormat::Iterm)) iterm_checked++;
         }
 
-        // 4. Round-trip exports: WT -> Export -> Re-import -> Compare
-        // Kitty export round-trip
-        std::string exported_kitty = export_theme(*t_wt, ThemeFormat::Kitty);
-        auto reimported_kitty = import_theme(exported_kitty, ThemeFormat::Kitty);
-        CHECK(reimported_kitty.has_value());
-        CHECK(t_wt->ui.background == reimported_kitty->ui.background);
-        CHECK(t_wt->ui.foreground == reimported_kitty->ui.foreground);
-        for (size_t i = 0; i < 16; ++i) {
-            CHECK(t_wt->ansi[i] == reimported_kitty->ansi[i]);
+        // 4. Round-trip exports: WT -> export -> re-import -> compare.
+        for (ThemeFormat f : {ThemeFormat::Kitty, ThemeFormat::WindowsTerminal, ThemeFormat::Ghostty,
+                              ThemeFormat::AlacrittyToml}) {
+            auto back = import_theme(export_theme(*t_wt, f), f);
+            CHECK(back.has_value());
+            if (back) CHECK(same_palette(*t_wt, *back, 0));
         }
-
-        // Windows Terminal export round-trip
-        std::string exported_wt = export_theme(*t_wt, ThemeFormat::WindowsTerminal);
-        auto reimported_wt = import_theme(exported_wt, ThemeFormat::WindowsTerminal);
-        CHECK(reimported_wt.has_value());
-        CHECK(t_wt->ui.background == reimported_wt->ui.background);
-        CHECK(t_wt->ui.foreground == reimported_wt->ui.foreground);
-        for (size_t i = 0; i < 16; ++i) {
-            CHECK(t_wt->ansi[i] == reimported_wt->ansi[i]);
-        }
-
-        // Ghostty export round-trip
-        std::string exported_ghostty = export_theme(*t_wt, ThemeFormat::Ghostty);
-        auto reimported_ghostty = import_theme(exported_ghostty, ThemeFormat::Ghostty);
-        CHECK(reimported_ghostty.has_value());
-        CHECK(t_wt->ui.background == reimported_ghostty->ui.background);
-        CHECK(t_wt->ui.foreground == reimported_ghostty->ui.foreground);
-        for (size_t i = 0; i < 16; ++i) {
-            CHECK(t_wt->ansi[i] == reimported_ghostty->ansi[i]);
-        }
-
-        // Alacritty TOML export round-trip
-        std::string exported_alacritty = export_theme(*t_wt, ThemeFormat::AlacrittyToml);
-        auto reimported_alacritty = import_theme(exported_alacritty, ThemeFormat::AlacrittyToml);
-        CHECK(reimported_alacritty.has_value());
-        CHECK(t_wt->ui.background == reimported_alacritty->ui.background);
-        CHECK(t_wt->ui.foreground == reimported_alacritty->ui.foreground);
-        for (size_t i = 0; i < 16; ++i) {
-            CHECK(t_wt->ansi[i] == reimported_alacritty->ansi[i]);
-        }
-
-        // iTerm2 XML export round-trip (tolerance 1 for float RGB)
-        std::string exported_iterm = export_theme(*t_wt, ThemeFormat::Iterm);
-        auto reimported_iterm = import_theme(exported_iterm, ThemeFormat::Iterm);
-        CHECK(reimported_iterm.has_value());
-        CHECK(color_within(t_wt->ui.background, reimported_iterm->ui.background, 1));
-        CHECK(color_within(t_wt->ui.foreground, reimported_iterm->ui.foreground, 1));
-        for (size_t i = 0; i < 16; ++i) {
-            CHECK(color_within(t_wt->ansi[i], reimported_iterm->ansi[i], 1));
-        }
+        // iTerm2 XML export round-trip (tolerance 1 for float RGB).
+        auto back_iterm = import_theme(export_theme(*t_wt, ThemeFormat::Iterm), ThemeFormat::Iterm);
+        CHECK(back_iterm.has_value());
+        if (back_iterm) CHECK(same_palette(*t_wt, *back_iterm, 1));
 
         roundtrips_checked++;
     }
