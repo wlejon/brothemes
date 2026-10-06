@@ -26,7 +26,10 @@ option(BROTHEMES_BUILD_TOOLS "Build brothemes_pack (regenerates the scheme oracl
 add_subdirectory(src)
 
 # --- Standalone Bronze JavaScript API ---
-option(BROTHEMES_ENABLE_API "Build Bronze JavaScript API" ON)
+# On by default only when brothemes is the top-level project. A library that
+# consumes brothemes (bropty, bromux, ...) then never needs bronze checked out;
+# bro, the one consumer that wants the api, forces BROTHEMES_ENABLE_API ON.
+option(BROTHEMES_ENABLE_API "Build Bronze JavaScript API" ${PROJECT_IS_TOP_LEVEL})
 if(BROTHEMES_ENABLE_API)
     if(NOT TARGET bronze_runtime_shared)
         set(BRONZE_BUILD_SHARED_RUNTIME ON CACHE BOOL "" FORCE)

@@ -10,10 +10,21 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
-# brothemes has no sibling dependencies, so every job is a plain checkout,
-# configure, build and ctest. The differential oracle reads the
-# iTerm2-Color-Schemes files from tests/data/iterm2-color-schemes.bpk, an
-# in-repo archive, so nothing is downloaded either.
+# The library has no sibling dependencies. Its JavaScript api (brothemes_api,
+# BROTHEMES_ENABLE_API, on when brothemes is the top-level project) binds
+# bronze, so every job lays out bronze and brass beside the checkout with
+# bronze's checkout-toolchain action:
+#
+#     $GITHUB_WORKSPACE/
+#       brothemes/  <- this repo, checked out into a named path, not the root
+#       bronze/     <- the JavaScript runtime brothemes_api binds
+#       brass/      <- bronze's code generator
+#
+# bronze and brass compile inside this build tree with the job's own compiler
+# and CRT, which makes brothemes_test_api the check that the library works the
+# way bro uses it. The differential oracle reads the iTerm2-Color-Schemes
+# files from tests/data/iterm2-color-schemes.bpk, an in-repo archive, so
+# nothing is downloaded either.
 jobs:
   test:
     name: ${{ matrix.name }}
@@ -32,6 +43,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: brothemes
+
+      - uses: wlejon/bronze/.github/actions/checkout-toolchain@main
 
       - name: Install Ninja (Linux)
         if: runner.os == 'Linux'
@@ -71,6 +84,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           path: brothemes
+
+      - uses: wlejon/bronze/.github/actions/checkout-toolchain@main
 
       - name: Install gcovr + Ninja
         run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends gcovr ninja-build
