@@ -2,10 +2,27 @@
 
 [![CI](https://github.com/wlejon/brothemes/actions/workflows/ci.yml/badge.svg)](https://github.com/wlejon/brothemes/actions/workflows/ci.yml)
 
-Standalone, reusable C++20 colour schemes and theme engine library for the
-[bro](https://github.com/wlejon/bro) desktop substrate and terminal applications. Zero dependencies, its own
-CMake and ctest, building cleanly on Windows (MSVC), Linux (GCC 12+), and
-macOS (Apple Clang).
+Standalone, reusable C++20 colour schemes and theme engine library for terminal
+applications, text editors, and desktop user interfaces. Zero external
+dependencies, its own CMake and ctest suite, building cleanly on Windows,
+Linux, and macOS.
+
+In the [Bro ecosystem](https://github.com/wlejon/bro/blob/main/docs/ecosystem.md),
+brothemes sits in the terminal and desktop layers:
+- [bro](https://github.com/wlejon/bro) links it under `BRO_WITH_THEMES` for terminal rendering and real-time minimum contrast enforcement;
+- It provides the JavaScript binding (`brothemes_api`) mounted at `bro.themes` for apps running on the runtime;
+- It can be embedded standalone into any C++20 project without depending on bro or bronze.
+
+## Platforms
+
+brothemes is written in pure C++20 using only the standard library and threads (zero dependencies).
+Platform support is verified in continuous integration across GCC, Clang, and MSVC:
+
+| Platform | Compiler | Dependencies | Verification |
+|----------|----------|--------------|--------------|
+| **Linux** (x86-64, AArch64) | GCC 12+, Clang 16+ | None (C++20 standard library) | Release, Debug, gcov coverage |
+| **Windows** (x86-64) | MSVC 2022+ | None (C++20 standard library) | Release, Debug CRT |
+| **macOS** (Apple Silicon, Intel) | Apple Clang | None (C++20 standard library) | Release |
 
 ## Features & Scope
 
@@ -59,36 +76,59 @@ src/
   theme.cpp         Theme normalization and helpers
   contrast.cpp      WCAG 2.1, APCA reference calculations, Oklch contrast solver
   format.cpp        Format dispatcher and auto-detection
-  formats/
-    json_util.*     Lightweight JSON parser/serializer with comment tolerance
-    xml_plist.*     Apple Property List XML parser & serializer
-    kv_util.*       Key-value line parser
-    toml_yaml_util.* Dotted configuration map parser for TOML & YAML
-    iterm.cpp       iTerm2 importer & exporter
-    windows_terminal.cpp Windows Terminal importer & exporter
-    alacritty.cpp   Alacritty TOML and YAML importer & exporter
-    kitty.cpp       Kitty conf importer & exporter
-    ghostty.cpp     Ghostty theme importer & exporter
-    base16.cpp      Base16 & Base24 YAML/JSON importer & exporter
-    vscode.cpp      VS Code theme JSON importer & exporter
+  formats/          Parsers and serializers for iTerm2, Windows Terminal, Alacritty,
+                    Kitty, Ghostty, Base16/Base24, and VS Code
 tests/
-  check.h           Minimal test harness (fails in Release, no assert())
   test_color.cpp    Color & ColorF unit tests
   test_color_spaces.cpp Color space roundtrips and reference points
   test_contrast.cpp WCAG 2.1 & APCA reference test vectors
   test_adjustment.cpp Automatic contrast adjustment and hue preservation
   test_formats.cpp  Direct format import/export roundtrips and file load/save
-  test_matrix.cpp   Cross-format matrix tests with Dracula, Solarized, Nord, Monokai, One Dark, Gruvbox, Tokyo Night, Catppuccin
-  test_schemes_oracle.cpp Differential oracle over all 724 iTerm2-Color-Schemes schemes
-  test_pack.cpp     The bpk archive codec the oracle data ships in
-  data/iterm2-color-schemes.bpk     The iTerm2-Color-Schemes files the oracle reads (0.5 MB)
-  data/iterm2-color-schemes.LICENSE Their licence (MIT)
+  test_matrix.cpp   Cross-format matrix tests with popular schemes
+  test_schemes_oracle.cpp Differential oracle over all 724 schemes from the archive
+  test_pack.cpp     Archive codec unit tests
 tools/pack/
   bpk.h, bpk_*.cpp  Archive codec: LZ77 over a 1 MiB window + canonical Huffman
   pack_schemes.cpp  brothemes_pack: rebuild / list / extract the oracle archive
 ```
 
-## Usage Example
+## Building and embedding
+
+### Standalone build
+
+```bash
+# Linux / macOS (Ninja)
+cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release
+ctest --test-dir build-release --output-on-failure
+
+# Windows (MSVC / Visual Studio 2022)
+cmake -B build
+cmake --build build --config Release
+ctest --test-dir build -C Release --output-on-failure
+```
+
+### Embedding in a CMake project
+
+brothemes has zero external dependencies and can be added directly via `add_subdirectory()` in either sibling or submodule layout:
+- **Sibling layout:** `../brothemes` beside your project.
+- **Submodule layout:** `third_party/brothemes` within your project.
+
+In your `CMakeLists.txt`:
+
+```cmake
+add_subdirectory(third_party/brothemes)
+
+target_link_libraries(my_app PRIVATE brothemes::brothemes)
+```
+
+Configuration options:
+- `BROTHEMES_BUILD_TESTS`: Build ctest suite (default `ON` when top-level, `OFF` when embedded via `add_subdirectory`).
+- `BROTHEMES_BUILD_TOOLS`: Build `brothemes_pack` offline maintenance tool (default `ON` when top-level, `OFF` when embedded).
+- `BROTHEMES_ENABLE_API`: Build Bronze JavaScript API binding (default `ON` if Bronze is detected).
+- `BROTHEMES_COVERAGE`: Build with gcov coverage instrumentation on GCC/Clang (default `OFF`).
+
+## API overview
 
 ```cpp
 #include <brothemes/themes.h>
@@ -105,11 +145,11 @@ int main() {
     float cr = wcag_contrast_ratio(theme->ui.foreground, theme->ui.background);
     std::cout << "Foreground contrast ratio: " << cr << ":1\n";
 
-    // Compute APCA contrast (W3C Silver)
+    // Compute APCA contrast (W3C Silver candidate)
     float apca = apca_contrast(theme->ui.foreground, theme->ui.background);
     std::cout << "APCA Lc: " << apca << "\n";
 
-    // Automatically boost ANSI palette to meet WCAG AA (4.5:1)
+    // Automatically boost ANSI palette to meet WCAG AA (4.5:1) in Oklch space
     adjust_palette_contrast(*theme, 4.5f);
 
     // Export theme to Ghostty or Alacritty TOML format
@@ -120,45 +160,26 @@ int main() {
 }
 ```
 
-## Building & Testing
+## Tests
 
-### Windows (MSVC, Visual Studio 2022)
+Every test is a real ctest executable compiled without `assert()` reliance; all invariants are checked and will fail in Release builds:
 
-```bash
-cmake -B build
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
-```
+| Test | Coverage |
+|------|----------|
+| `test_color` | RGBA parsing (hex, CSS rgb/hsl, ANSI names), formatting, float conversions |
+| `test_color_spaces` | sRGB, Linear sRGB, XYZ, CIELAB, Oklab, Oklch, HSL round-trips and gamut fitting |
+| `test_contrast` | WCAG 2.1 relative luminance and APCA reference test vectors |
+| `test_adjustment` | Automatic minimum contrast solver and Oklch hue preservation |
+| `test_formats` | Direct import/export round-trips and file load/save across all supported formats |
+| `test_matrix` | Cross-format matrix tests with Dracula, Solarized, Nord, Monokai, One Dark, Gruvbox, Tokyo Night, Catppuccin |
+| `test_schemes_oracle` | Differential oracle testing round-trips across all 724 schemes from the bundled archive |
+| `test_pack` | Archive codec verification (LZ77 windowing and canonical Huffman compression) |
 
-### Linux (GCC 12+, Ninja)
+### Multi-format differential oracle & zero skips
 
-```bash
-cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build-release
-ctest --test-dir build-release --output-on-failure
-```
-
-### macOS (Apple Clang, Ninja)
-
-```bash
-cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build-release
-ctest --test-dir build-release --output-on-failure
-```
-
-## Test Philosophy
-
-- Tests are real ctests with checks compiled into every configuration (no `assert()`).
-- All checks fail in Release builds if an invariant is violated.
-- Non-destructive: tests write only to temporary files in the build tree and clean them up before exit.
-- Includes authentic reference test vectors for Dracula, Solarized Dark, Solarized Light, Nord, Monokai, One Dark, Gruvbox, Tokyo Night, and Catppuccin.
-- Multi-format differential oracle: round-trips all 724 schemes from the public `iTerm2-Color-Schemes` repository across Windows Terminal, Kitty, Ghostty, Alacritty, and iTerm2 property list formats.
-  The upstream files (2,899 of them, 6.4 MB of content, ~9.7 MB on disk) ship byte for byte in one 0.5 MB archive,
-  `tests/data/iterm2-color-schemes.bpk`, written by an in-repo C++ codec (`tools/pack`, no third-party compressor).
-  To move to a newer upstream: `brothemes_pack <iTerm2-Color-Schemes checkout> tests/data/iterm2-color-schemes.bpk`
-  (pack an LF checkout, e.g. `git -c core.autocrlf=false clone`, so the archive holds upstream's bytes)
-  (built with the tests; `--list` / `--extract` read an archive back), then update the per-format counts in
-  `test_schemes_oracle.cpp`. The library itself embeds no scheme data.
+- **Multi-format differential oracle**: The test suite round-trips all 724 themes from the upstream `iTerm2-Color-Schemes` repository across Windows Terminal, Kitty, Ghostty, Alacritty, and iTerm2 property list formats.
+- **Bundled test archive**: All 2,899 upstream scheme files (~9.7 MB uncompressed) ship byte-for-byte in an in-repo 0.5 MB archive at `tests/data/iterm2-color-schemes.bpk`, decompressed on the fly by an internal codec (`tools/pack`).
+- **Zero CI / network skips**: All tests run completely offline and self-contained. There are **zero network skips and zero platform skips** on CI across Windows, Linux, and macOS.
 
 ## Standards & Licensing: WCAG 2.1 vs APCA
 
@@ -179,4 +200,3 @@ MIT; see [LICENSE](LICENSE). The test data in `tests/data/iterm2-color-schemes.b
 [iTerm2-Color-Schemes](https://github.com/mbadolato/iTerm2-Color-Schemes) collection, also MIT
 (`tests/data/iterm2-color-schemes.LICENSE`); it is read only by the tests and is not part of the
 library.
-

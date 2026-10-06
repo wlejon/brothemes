@@ -16,6 +16,7 @@ add_library(brothemes
     formats/base16.cpp
     formats/vscode.cpp
 )
+add_library(brothemes::brothemes ALIAS brothemes)
 
 target_include_directories(brothemes
     PUBLIC
