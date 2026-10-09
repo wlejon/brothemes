@@ -110,14 +110,17 @@ ctest --test-dir build -C Release --output-on-failure
 
 ### Embedding in a CMake project
 
-brothemes has zero external dependencies and can be added directly via `add_subdirectory()` in either sibling or submodule layout:
-- **Sibling layout:** `../brothemes` beside your project.
-- **Submodule layout:** `third_party/brothemes` within your project.
+The library has zero external dependencies. Its JavaScript binding (`BROTHEMES_ENABLE_API`) needs
+[bronze](https://github.com/wlejon/bronze) and, through it, [brass](https://github.com/wlejon/brass);
+a plain `git clone` is enough, as there are no submodules. They resolve through
+`cmake/bro_deps.cmake`: an existing target, then a working tree at `../<name>`, then the commit
+`CMakeLists.txt` pins, fetched at configure (override with `-DFETCHCONTENT_SOURCE_DIR_<NAME>=<path>`).
 
-In your `CMakeLists.txt`:
+Bro-ecosystem consumers pin brothemes with `bro_dependency(brothemes ...)`, which takes a
+`../brothemes` working tree when there is one. Any other project can add it directly:
 
 ```cmake
-add_subdirectory(third_party/brothemes)
+add_subdirectory(path/to/brothemes)
 
 target_link_libraries(my_app PRIVATE brothemes::brothemes)
 ```
@@ -125,7 +128,7 @@ target_link_libraries(my_app PRIVATE brothemes::brothemes)
 Configuration options:
 - `BROTHEMES_BUILD_TESTS`: Build ctest suite (default `ON` when top-level, `OFF` when embedded via `add_subdirectory`).
 - `BROTHEMES_BUILD_TOOLS`: Build `brothemes_pack` offline maintenance tool (default `ON` when top-level, `OFF` when embedded).
-- `BROTHEMES_ENABLE_API`: Build Bronze JavaScript API binding (default `ON` if Bronze is detected).
+- `BROTHEMES_ENABLE_API`: Build Bronze JavaScript API binding (default `ON` when top-level, `OFF` when embedded).
 - `BROTHEMES_COVERAGE`: Build with gcov coverage instrumentation on GCC/Clang (default `OFF`).
 
 ## API overview
