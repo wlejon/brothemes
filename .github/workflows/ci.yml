@@ -12,7 +12,7 @@ concurrency:
 
 # The library has no sibling dependencies. Its JavaScript api (brothemes_api,
 # BROTHEMES_ENABLE_API, on when brothemes is the top-level project) binds
-# bronze, which, with brass, comes from the commit CMakeLists.txt pins
+# bronze, which, with brass, comes from the head of its main branch
 # (cmake/bro_deps.cmake), fetched at configure: every job builds a plain
 # clone. bronze and brass compile inside this build tree with the job's own compiler
 # and CRT, which makes brothemes_test_api the check that the library works the
