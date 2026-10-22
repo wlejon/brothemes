@@ -21,6 +21,7 @@ std::optional<Theme> import_vscode(std::string_view content) {
     }
 
     Theme theme;
+    bool found_any = false;
 
     if (const JsonValue* n = json->find("name"); n && n->is_string()) {
         theme.metadata.name = n->as_string();
@@ -31,42 +32,53 @@ std::optional<Theme> import_vscode(std::string_view content) {
 
     const JsonValue* colors = json->find("colors");
     if (colors && colors->is_object()) {
+        auto set_color = [&](std::string_view key, auto& dest) -> bool {
+            if (auto c = json_get_color(*colors, key)) {
+                dest = *c;
+                found_any = true;
+                return true;
+            }
+            return false;
+        };
+
         // UI colors
-        if (auto c = json_get_color(*colors, "editor.background")) theme.ui.background = *c;
-        else if (auto c2 = json_get_color(*colors, "terminal.background")) theme.ui.background = *c2;
+        if (!set_color("editor.background", theme.ui.background)) {
+            set_color("terminal.background", theme.ui.background);
+        }
+        if (!set_color("editor.foreground", theme.ui.foreground)) {
+            set_color("terminal.foreground", theme.ui.foreground);
+        }
+        if (!set_color("editorCursor.foreground", theme.ui.cursor)) {
+            set_color("terminalCursor.foreground", theme.ui.cursor);
+        }
 
-        if (auto c = json_get_color(*colors, "editor.foreground")) theme.ui.foreground = *c;
-        else if (auto c2 = json_get_color(*colors, "terminal.foreground")) theme.ui.foreground = *c2;
-
-        if (auto c = json_get_color(*colors, "editorCursor.foreground")) theme.ui.cursor = *c;
-        else if (auto c2 = json_get_color(*colors, "terminalCursor.foreground")) theme.ui.cursor = *c2;
-
-        if (auto c = json_get_color(*colors, "editor.selectionBackground")) theme.ui.selection_background = *c;
-        if (auto c = json_get_color(*colors, "editor.selectionForeground")) theme.ui.selection_foreground = *c;
-        if (auto c = json_get_color(*colors, "editor.lineHighlightBackground")) theme.ui.active_line = *c;
-        if (auto c = json_get_color(*colors, "editorLineNumber.foreground")) theme.ui.line_number = *c;
-        if (auto c = json_get_color(*colors, "statusBar.background")) theme.ui.status_bar = *c;
-        if (auto c = json_get_color(*colors, "sideBar.border")) theme.ui.border = *c;
-        else if (auto c2 = json_get_color(*colors, "editorGroup.border")) theme.ui.border = *c2;
+        set_color("editor.selectionBackground", theme.ui.selection_background);
+        set_color("editor.selectionForeground", theme.ui.selection_foreground);
+        set_color("editor.lineHighlightBackground", theme.ui.active_line);
+        set_color("editorLineNumber.foreground", theme.ui.line_number);
+        set_color("statusBar.background", theme.ui.status_bar);
+        if (!set_color("sideBar.border", theme.ui.border)) {
+            set_color("editorGroup.border", theme.ui.border);
+        }
 
         // Terminal ANSI colors
-        if (auto c = json_get_color(*colors, "terminal.ansiBlack")) theme.ansi[0] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiRed")) theme.ansi[1] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiGreen")) theme.ansi[2] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiYellow")) theme.ansi[3] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiBlue")) theme.ansi[4] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiMagenta")) theme.ansi[5] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiCyan")) theme.ansi[6] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiWhite")) theme.ansi[7] = *c;
+        set_color("terminal.ansiBlack", theme.ansi[0]);
+        set_color("terminal.ansiRed", theme.ansi[1]);
+        set_color("terminal.ansiGreen", theme.ansi[2]);
+        set_color("terminal.ansiYellow", theme.ansi[3]);
+        set_color("terminal.ansiBlue", theme.ansi[4]);
+        set_color("terminal.ansiMagenta", theme.ansi[5]);
+        set_color("terminal.ansiCyan", theme.ansi[6]);
+        set_color("terminal.ansiWhite", theme.ansi[7]);
 
-        if (auto c = json_get_color(*colors, "terminal.ansiBrightBlack")) theme.ansi[8] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiBrightRed")) theme.ansi[9] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiBrightGreen")) theme.ansi[10] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiBrightYellow")) theme.ansi[11] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiBrightBlue")) theme.ansi[12] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiBrightMagenta")) theme.ansi[13] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiBrightCyan")) theme.ansi[14] = *c;
-        if (auto c = json_get_color(*colors, "terminal.ansiBrightWhite")) theme.ansi[15] = *c;
+        set_color("terminal.ansiBrightBlack", theme.ansi[8]);
+        set_color("terminal.ansiBrightRed", theme.ansi[9]);
+        set_color("terminal.ansiBrightGreen", theme.ansi[10]);
+        set_color("terminal.ansiBrightYellow", theme.ansi[11]);
+        set_color("terminal.ansiBrightBlue", theme.ansi[12]);
+        set_color("terminal.ansiBrightMagenta", theme.ansi[13]);
+        set_color("terminal.ansiBrightCyan", theme.ansi[14]);
+        set_color("terminal.ansiBrightWhite", theme.ansi[15]);
     }
 
     // Token colors
@@ -95,19 +107,27 @@ std::optional<Theme> import_vscode(std::string_view content) {
                 return false;
             };
 
-            if (!theme.syntax.comment && match_scope("comment")) theme.syntax.comment = *fg;
-            if (!theme.syntax.string && match_scope("string")) theme.syntax.string = *fg;
-            if (!theme.syntax.keyword && match_scope("keyword")) theme.syntax.keyword = *fg;
-            if (!theme.syntax.number && (match_scope("constant.numeric") || match_scope("number"))) theme.syntax.number = *fg;
-            if (!theme.syntax.function && (match_scope("entity.name.function") || match_scope("support.function"))) theme.syntax.function = *fg;
-            if (!theme.syntax.type && (match_scope("entity.name.type") || match_scope("entity.name.class"))) theme.syntax.type = *fg;
-            if (!theme.syntax.variable && match_scope("variable")) theme.syntax.variable = *fg;
-            if (!theme.syntax.constant && match_scope("constant")) theme.syntax.constant = *fg;
-            if (!theme.syntax.operator_color && match_scope("operator")) theme.syntax.operator_color = *fg;
-            if (!theme.syntax.punctuation && match_scope("punctuation")) theme.syntax.punctuation = *fg;
+            auto set_token = [&](std::optional<Color>& dest, bool cond) {
+                if (!dest && cond) {
+                    dest = *fg;
+                    found_any = true;
+                }
+            };
+
+            set_token(theme.syntax.comment, match_scope("comment"));
+            set_token(theme.syntax.string, match_scope("string"));
+            set_token(theme.syntax.keyword, match_scope("keyword"));
+            set_token(theme.syntax.number, match_scope("constant.numeric") || match_scope("number"));
+            set_token(theme.syntax.function, match_scope("entity.name.function") || match_scope("support.function"));
+            set_token(theme.syntax.type, match_scope("entity.name.type") || match_scope("entity.name.class"));
+            set_token(theme.syntax.variable, match_scope("variable"));
+            set_token(theme.syntax.constant, match_scope("constant"));
+            set_token(theme.syntax.operator_color, match_scope("operator"));
+            set_token(theme.syntax.punctuation, match_scope("punctuation"));
         }
     }
 
+    if (!found_any) return std::nullopt;
     return theme;
 }
 

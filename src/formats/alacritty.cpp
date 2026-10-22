@@ -12,40 +12,52 @@ std::optional<Color> map_get_color(const ConfigMap& map, std::string_view key) {
     return parse_hex(*val);
 }
 
-Theme parse_alacritty_map(const ConfigMap& map) {
+std::optional<Theme> parse_alacritty_map(const ConfigMap& map) {
     Theme theme;
+    bool found_any = false;
 
-    if (auto c = map_get_color(map, "colors.primary.background")) theme.ui.background = *c;
-    if (auto c = map_get_color(map, "colors.primary.foreground")) theme.ui.foreground = *c;
+    auto set_color = [&](std::string_view key, auto& dest) -> bool {
+        if (auto c = map_get_color(map, key)) {
+            dest = *c;
+            found_any = true;
+            return true;
+        }
+        return false;
+    };
 
-    if (auto c = map_get_color(map, "colors.cursor.cursor")) theme.ui.cursor = *c;
-    else if (auto c2 = map_get_color(map, "colors.cursor.background")) theme.ui.cursor = *c2;
+    set_color("colors.primary.background", theme.ui.background);
+    set_color("colors.primary.foreground", theme.ui.foreground);
 
-    if (auto c = map_get_color(map, "colors.cursor.text")) theme.ui.cursor_text = *c;
+    if (!set_color("colors.cursor.cursor", theme.ui.cursor)) {
+        set_color("colors.cursor.background", theme.ui.cursor);
+    }
 
-    if (auto c = map_get_color(map, "colors.selection.background")) theme.ui.selection_background = *c;
-    if (auto c = map_get_color(map, "colors.selection.text")) theme.ui.selection_foreground = *c;
+    set_color("colors.cursor.text", theme.ui.cursor_text);
+
+    set_color("colors.selection.background", theme.ui.selection_background);
+    set_color("colors.selection.text", theme.ui.selection_foreground);
 
     // Normal colors (0-7)
-    if (auto c = map_get_color(map, "colors.normal.black")) theme.ansi[0] = *c;
-    if (auto c = map_get_color(map, "colors.normal.red")) theme.ansi[1] = *c;
-    if (auto c = map_get_color(map, "colors.normal.green")) theme.ansi[2] = *c;
-    if (auto c = map_get_color(map, "colors.normal.yellow")) theme.ansi[3] = *c;
-    if (auto c = map_get_color(map, "colors.normal.blue")) theme.ansi[4] = *c;
-    if (auto c = map_get_color(map, "colors.normal.magenta")) theme.ansi[5] = *c;
-    if (auto c = map_get_color(map, "colors.normal.cyan")) theme.ansi[6] = *c;
-    if (auto c = map_get_color(map, "colors.normal.white")) theme.ansi[7] = *c;
+    set_color("colors.normal.black", theme.ansi[0]);
+    set_color("colors.normal.red", theme.ansi[1]);
+    set_color("colors.normal.green", theme.ansi[2]);
+    set_color("colors.normal.yellow", theme.ansi[3]);
+    set_color("colors.normal.blue", theme.ansi[4]);
+    set_color("colors.normal.magenta", theme.ansi[5]);
+    set_color("colors.normal.cyan", theme.ansi[6]);
+    set_color("colors.normal.white", theme.ansi[7]);
 
     // Bright colors (8-15)
-    if (auto c = map_get_color(map, "colors.bright.black")) theme.ansi[8] = *c;
-    if (auto c = map_get_color(map, "colors.bright.red")) theme.ansi[9] = *c;
-    if (auto c = map_get_color(map, "colors.bright.green")) theme.ansi[10] = *c;
-    if (auto c = map_get_color(map, "colors.bright.yellow")) theme.ansi[11] = *c;
-    if (auto c = map_get_color(map, "colors.bright.blue")) theme.ansi[12] = *c;
-    if (auto c = map_get_color(map, "colors.bright.magenta")) theme.ansi[13] = *c;
-    if (auto c = map_get_color(map, "colors.bright.cyan")) theme.ansi[14] = *c;
-    if (auto c = map_get_color(map, "colors.bright.white")) theme.ansi[15] = *c;
+    set_color("colors.bright.black", theme.ansi[8]);
+    set_color("colors.bright.red", theme.ansi[9]);
+    set_color("colors.bright.green", theme.ansi[10]);
+    set_color("colors.bright.yellow", theme.ansi[11]);
+    set_color("colors.bright.blue", theme.ansi[12]);
+    set_color("colors.bright.magenta", theme.ansi[13]);
+    set_color("colors.bright.cyan", theme.ansi[14]);
+    set_color("colors.bright.white", theme.ansi[15]);
 
+    if (!found_any) return std::nullopt;
     return theme;
 }
 
@@ -54,14 +66,14 @@ Theme parse_alacritty_map(const ConfigMap& map) {
 std::optional<Theme> import_alacritty(std::string_view content) {
     // Try TOML first
     ConfigMap toml_map = ConfigMap::parse_toml(content);
-    if (toml_map.has("colors.primary.background") || toml_map.has("colors.normal.red")) {
-        return parse_alacritty_map(toml_map);
+    if (auto t = parse_alacritty_map(toml_map)) {
+        return t;
     }
 
     // Try YAML
     ConfigMap yaml_map = ConfigMap::parse_yaml(content);
-    if (yaml_map.has("colors.primary.background") || yaml_map.has("colors.normal.red")) {
-        return parse_alacritty_map(yaml_map);
+    if (auto t = parse_alacritty_map(yaml_map)) {
+        return t;
     }
 
     return std::nullopt;

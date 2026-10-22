@@ -26,24 +26,51 @@ std::string clean_value(std::string_view sv) {
 std::string_view strip_comments(std::string_view line) {
     bool in_single = false;
     bool in_double = false;
+    bool seen_sep = false;
+    bool seen_value_after_sep = false;
     for (size_t i = 0; i < line.size(); ++i) {
         char c = line[i];
         if (c == '"' && !in_single) {
             in_double = !in_double;
+            if (!in_double && seen_sep) seen_value_after_sep = true;
         } else if (c == '\'' && !in_double) {
             in_single = !in_single;
-        } else if (c == '#' && !in_single && !in_double) {
-            // Check if it's the start of a comment (e.g. at line start or preceded by whitespace)
-            // or if it's an unquoted hex color like #282a36
-            bool is_hex_color = false;
-            if (i > 0 && (line[i - 1] == '=' || line[i - 1] == ':' || std::isspace(static_cast<unsigned char>(line[i - 1])))) {
-                // If followed by valid hex characters, treat as color value
-                if (i + 1 < line.size() && std::isxdigit(static_cast<unsigned char>(line[i + 1]))) {
-                    is_hex_color = true;
+            if (!in_single && seen_sep) seen_value_after_sep = true;
+        } else if (!in_single && !in_double) {
+            if (c == '=' || c == ':') {
+                seen_sep = true;
+                seen_value_after_sep = false;
+            } else if (c == '#') {
+                // Only treat an unquoted '#' as a bare hex color when it is in the value
+                // position (after '=' or ':' and before any value token) and followed by
+                // a token of 3, 4, 6, or 8 hex digits.
+                bool is_hex_color = false;
+                if (seen_sep && !seen_value_after_sep && i > 0 &&
+                    (line[i - 1] == '=' || line[i - 1] == ':' ||
+                     std::isspace(static_cast<unsigned char>(line[i - 1])))) {
+                    size_t j = i + 1;
+                    while (j < line.size() &&
+                           !std::isspace(static_cast<unsigned char>(line[j])) &&
+                           line[j] != '#' && line[j] != ',' && line[j] != '}') {
+                        ++j;
+                    }
+                    size_t hex_len = j - (i + 1);
+                    if (hex_len == 3 || hex_len == 4 || hex_len == 6 || hex_len == 8) {
+                        is_hex_color = true;
+                        for (size_t k = i + 1; k < j; ++k) {
+                            if (!std::isxdigit(static_cast<unsigned char>(line[k]))) {
+                                is_hex_color = false;
+                                break;
+                            }
+                        }
+                    }
                 }
-            }
-            if (!is_hex_color) {
-                return line.substr(0, i);
+                if (!is_hex_color) {
+                    return line.substr(0, i);
+                }
+                seen_value_after_sep = true;
+            } else if (seen_sep && !std::isspace(static_cast<unsigned char>(c)) && c != '{') {
+                seen_value_after_sep = true;
             }
         }
     }

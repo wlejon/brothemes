@@ -11,38 +11,51 @@ std::optional<Color> json_get_color(const JsonValue& obj, std::string_view key) 
     return parse_hex(val->as_string());
 }
 
-Theme parse_wt_scheme(const JsonValue& obj) {
+std::optional<Theme> parse_wt_scheme(const JsonValue& obj) {
     Theme theme;
+    bool found_any = false;
 
     if (const JsonValue* n = obj.find("name"); n && n->is_string()) {
         theme.metadata.name = n->as_string();
     }
 
-    if (auto c = json_get_color(obj, "background")) theme.ui.background = *c;
-    if (auto c = json_get_color(obj, "foreground")) theme.ui.foreground = *c;
-    if (auto c = json_get_color(obj, "cursorColor")) theme.ui.cursor = *c;
-    if (auto c = json_get_color(obj, "selectionBackground")) theme.ui.selection_background = *c;
+    auto set_color = [&](std::string_view key, auto& dest) -> bool {
+        if (auto c = json_get_color(obj, key)) {
+            dest = *c;
+            found_any = true;
+            return true;
+        }
+        return false;
+    };
 
-    if (auto c = json_get_color(obj, "black")) theme.ansi[0] = *c;
-    if (auto c = json_get_color(obj, "red")) theme.ansi[1] = *c;
-    if (auto c = json_get_color(obj, "green")) theme.ansi[2] = *c;
-    if (auto c = json_get_color(obj, "yellow")) theme.ansi[3] = *c;
-    if (auto c = json_get_color(obj, "blue")) theme.ansi[4] = *c;
-    if (auto c = json_get_color(obj, "purple")) theme.ansi[5] = *c;
-    else if (auto c2 = json_get_color(obj, "magenta")) theme.ansi[5] = *c2;
-    if (auto c = json_get_color(obj, "cyan")) theme.ansi[6] = *c;
-    if (auto c = json_get_color(obj, "white")) theme.ansi[7] = *c;
+    set_color("background", theme.ui.background);
+    set_color("foreground", theme.ui.foreground);
+    set_color("cursorColor", theme.ui.cursor);
+    set_color("selectionBackground", theme.ui.selection_background);
 
-    if (auto c = json_get_color(obj, "brightBlack")) theme.ansi[8] = *c;
-    if (auto c = json_get_color(obj, "brightRed")) theme.ansi[9] = *c;
-    if (auto c = json_get_color(obj, "brightGreen")) theme.ansi[10] = *c;
-    if (auto c = json_get_color(obj, "brightYellow")) theme.ansi[11] = *c;
-    if (auto c = json_get_color(obj, "brightBlue")) theme.ansi[12] = *c;
-    if (auto c = json_get_color(obj, "brightPurple")) theme.ansi[13] = *c;
-    else if (auto c2 = json_get_color(obj, "brightMagenta")) theme.ansi[13] = *c2;
-    if (auto c = json_get_color(obj, "brightCyan")) theme.ansi[14] = *c;
-    if (auto c = json_get_color(obj, "brightWhite")) theme.ansi[15] = *c;
+    set_color("black", theme.ansi[0]);
+    set_color("red", theme.ansi[1]);
+    set_color("green", theme.ansi[2]);
+    set_color("yellow", theme.ansi[3]);
+    set_color("blue", theme.ansi[4]);
+    if (!set_color("purple", theme.ansi[5])) {
+        set_color("magenta", theme.ansi[5]);
+    }
+    set_color("cyan", theme.ansi[6]);
+    set_color("white", theme.ansi[7]);
 
+    set_color("brightBlack", theme.ansi[8]);
+    set_color("brightRed", theme.ansi[9]);
+    set_color("brightGreen", theme.ansi[10]);
+    set_color("brightYellow", theme.ansi[11]);
+    set_color("brightBlue", theme.ansi[12]);
+    if (!set_color("brightPurple", theme.ansi[13])) {
+        set_color("brightMagenta", theme.ansi[13]);
+    }
+    set_color("brightCyan", theme.ansi[14]);
+    set_color("brightWhite", theme.ansi[15]);
+
+    if (!found_any) return std::nullopt;
     return theme;
 }
 
@@ -56,9 +69,12 @@ std::optional<Theme> import_windows_terminal(std::string_view content) {
 
     // Check if it's a wrapper with "schemes" array
     if (const JsonValue* schemes = json->find("schemes"); schemes && schemes->is_array()) {
-        if (!schemes->arr_val.empty() && schemes->arr_val.front().is_object()) {
-            return parse_wt_scheme(schemes->arr_val.front());
+        for (const auto& entry : schemes->arr_val) {
+            if (entry.is_object()) {
+                if (auto t = parse_wt_scheme(entry)) return t;
+            }
         }
+        return std::nullopt;
     }
 
     // Otherwise treat this object as the scheme itself

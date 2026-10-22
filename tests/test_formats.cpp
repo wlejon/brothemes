@@ -176,6 +176,60 @@ int main() {
         }
 
         std::remove(tmp_file.c_str());
+
+        const std::string tmp_yaml = "test_theme_temp.yaml";
+        CHECK(save_theme_file(original, tmp_yaml, ThemeFormat::Auto));
+        CHECK_EQ(static_cast<int>(detect_format("", ".YAML")), static_cast<int>(ThemeFormat::AlacrittyYaml));
+        CHECK_EQ(static_cast<int>(detect_format("", ".yml")), static_cast<int>(ThemeFormat::AlacrittyYaml));
+        CHECK_EQ(static_cast<int>(detect_format("", ".JSON")), static_cast<int>(ThemeFormat::WindowsTerminal));
+        CHECK_EQ(static_cast<int>(detect_format("", ".TOML")), static_cast<int>(ThemeFormat::AlacrittyToml));
+        auto loaded_yaml = load_theme_file(tmp_yaml, ThemeFormat::Auto);
+        CHECK(loaded_yaml.has_value());
+        if (loaded_yaml.has_value()) {
+            CHECK_EQ(loaded_yaml->ui.background, original.ui.background);
+            CHECK_EQ(loaded_yaml->ui.foreground, original.ui.foreground);
+        }
+        std::remove(tmp_yaml.c_str());
+    }
+
+    // 11. Inline comments starting with hex chars, partial Alacritty, and empty/fallback validation
+    {
+        auto toml_commented = import_theme(
+            "[colors.primary]\n"
+            "background = \"#1e1e2e\" #catppuccin\n"
+            "foreground = \"#cdd6f4\" #deadbeef\n",
+            ThemeFormat::AlacrittyToml);
+        CHECK(toml_commented.has_value());
+        if (toml_commented.has_value()) {
+            CHECK_EQ(toml_commented->ui.background, Color(0x1e, 0x1e, 0x2e));
+            CHECK_EQ(toml_commented->ui.foreground, Color(0xcd, 0xd6, 0xf4));
+        }
+
+        auto yaml_commented = import_theme(
+            "colors: #default\n"
+            "  primary:\n"
+            "    foreground: \"#cdd6f4\" #bright\n"
+            "  normal:\n"
+            "    green: #a6e3a1 #accent\n",
+            ThemeFormat::AlacrittyYaml);
+        CHECK(yaml_commented.has_value());
+        if (yaml_commented.has_value()) {
+            CHECK_EQ(yaml_commented->ui.foreground, Color(0xcd, 0xd6, 0xf4));
+            CHECK_EQ(yaml_commented->ansi[2], Color(0xa6, 0xe3, 0xa1));
+        }
+
+        CHECK(!import_theme("{}", ThemeFormat::Auto).has_value());
+        CHECK(!import_theme("{\"foo\": \"bar\"}", ThemeFormat::WindowsTerminal).has_value());
+        CHECK(!import_theme("{\"colors\": {}}", ThemeFormat::VsCode).has_value());
+        CHECK(!import_theme("<plist><dict></dict></plist>", ThemeFormat::Iterm).has_value());
+
+        auto vsc_fallback = import_theme(
+            "{\"colors\": {\"terminal.background\": \"#112233\"}}",
+            ThemeFormat::Auto);
+        CHECK(vsc_fallback.has_value());
+        if (vsc_fallback.has_value()) {
+            CHECK_EQ(vsc_fallback->ui.background, Color(0x11, 0x22, 0x33));
+        }
     }
 
     return brotest::finish("test_formats");

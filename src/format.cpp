@@ -6,6 +6,7 @@
 #include "formats/ghostty.h"
 #include "formats/base16.h"
 #include "formats/vscode.h"
+#include <cctype>
 #include <fstream>
 #include <sstream>
 
@@ -30,18 +31,22 @@ std::string_view format_name(ThemeFormat format) noexcept {
 }
 
 ThemeFormat detect_format(std::string_view content, std::string_view file_extension) {
-    // Check by file extension first if provided
+    std::string ext;
     if (!file_extension.empty()) {
         if (file_extension.front() == '.') {
             file_extension.remove_prefix(1);
         }
-        if (file_extension == "itermcolors") {
+        ext.reserve(file_extension.size());
+        for (char c : file_extension) {
+            ext.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+        if (ext == "itermcolors") {
             return ThemeFormat::Iterm;
-        } else if (file_extension == "toml") {
+        } else if (ext == "toml") {
             return ThemeFormat::AlacrittyToml;
-        } else if (file_extension == "conf") {
+        } else if (ext == "conf") {
             return ThemeFormat::Kitty;
-        } else if (file_extension == "ghostty") {
+        } else if (ext == "ghostty") {
             return ThemeFormat::Ghostty;
         }
     }
@@ -97,6 +102,13 @@ ThemeFormat detect_format(std::string_view content, std::string_view file_extens
 
     if (content.find("colors:") != std::string_view::npos) {
         return ThemeFormat::AlacrittyYaml;
+    }
+
+    if (ext == "yaml" || ext == "yml") {
+        return ThemeFormat::AlacrittyYaml;
+    }
+    if (ext == "json") {
+        return ThemeFormat::WindowsTerminal;
     }
 
     return ThemeFormat::Auto;

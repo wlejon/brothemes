@@ -73,35 +73,44 @@ std::optional<Theme> import_iterm(std::string_view content) {
     }
 
     Theme theme;
+    bool found_any = false;
 
     // ANSI Colors 0 - 15
     for (size_t i = 0; i < 16; ++i) {
         std::string key = "Ansi " + std::to_string(i) + " Color";
         if (auto col = parse_plist_color(root->find(key))) {
             theme.ansi[i] = *col;
+            found_any = true;
         }
     }
 
     // UI Colors
     if (auto col = parse_plist_color(root->find("Background Color"))) {
         theme.ui.background = *col;
+        found_any = true;
     }
     if (auto col = parse_plist_color(root->find("Foreground Color"))) {
         theme.ui.foreground = *col;
+        found_any = true;
     }
     if (auto col = parse_plist_color(root->find("Cursor Color"))) {
         theme.ui.cursor = *col;
+        found_any = true;
     }
     if (auto col = parse_plist_color(root->find("Cursor Text Color"))) {
         theme.ui.cursor_text = *col;
+        found_any = true;
     }
     if (auto col = parse_plist_color(root->find("Selection Color"))) {
         theme.ui.selection_background = *col;
+        found_any = true;
     }
     if (auto col = parse_plist_color(root->find("Selected Text Color"))) {
         theme.ui.selection_foreground = *col;
+        found_any = true;
     }
 
+    if (!found_any) return std::nullopt;
     return theme;
 }
 
