@@ -1,6 +1,5 @@
 add_library(brothemes_api STATIC
     api.cpp
-    host_class.cpp
     themes_convert.cpp
     native_themes.cpp
     native_themes_contrast.cpp
