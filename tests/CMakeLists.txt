@@ -23,6 +23,7 @@ bro_add_test(test_pack)
 if(BROTHEMES_ENABLE_API)
     add_executable(brothemes_test_api
         test_themes_api.cpp
+        test_themes_api_gate.cpp
     )
     target_include_directories(brothemes_test_api PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/api

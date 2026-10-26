@@ -103,7 +103,7 @@ void installFormatOnto(ObjectBuilder& root) {
             return ev::throwTypeError("load expects at least 1 string argument: (path)");
         }
         std::string rawPath = ev::toUtf8(args[0]);
-        std::string resolved = resolvePath(rawPath);
+        std::string resolved = gatedPath(rawPath, false);
 
         ThemeFormat fmt = ThemeFormat::Auto;
         bool asHex = true;
@@ -143,7 +143,7 @@ void installFormatOnto(ObjectBuilder& root) {
         }
 
         std::string rawPath = ev::toUtf8(args[1]);
-        std::string resolved = resolvePath(rawPath);
+        std::string resolved = gatedPath(rawPath, true);
 
         ThemeFormat fmt = ThemeFormat::Auto;
         if (args.size() > 2) {

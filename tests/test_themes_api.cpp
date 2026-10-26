@@ -13,6 +13,9 @@
 namespace ev = bronze::embed;
 using namespace bronze::eval;
 
+// tests/test_themes_api_gate.cpp: load / save ask the host's access gate.
+void testAccessGate();
+
 void testMounting() {
     auto g = ev::globalValue("bro");
     CHECK(g.found);
@@ -401,6 +404,9 @@ int main() {
     testFileLoadSave();
 
     testGcStress();
+
+    std::cout << "Running testAccessGate..." << std::endl;
+    testAccessGate();
 
     return brotest::finish("test_themes_api");
 }
